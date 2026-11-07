@@ -1,0 +1,10 @@
+[Unit]
+Description=The Catalogue: retry restock emails that are due (schedule)
+
+[Timer]
+OnCalendar=*-*-* *:30:00
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

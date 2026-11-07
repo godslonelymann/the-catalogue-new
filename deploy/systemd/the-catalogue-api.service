@@ -1,0 +1,20 @@
+[Unit]
+Description=The Catalogue API (FastAPI)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/the-catalogue-new/backend
+# Settings come from /home/ubuntu/the-catalogue-new/.env (read by the app).
+ExecStart=/home/ubuntu/the-catalogue-new/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

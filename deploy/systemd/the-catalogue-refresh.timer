@@ -1,0 +1,10 @@
+[Unit]
+Description=The Catalogue: daily refresh of every monitored store, then restock emails (schedule)
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,42 @@
+thecatalogue.duckdns.org {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+
+    # The API. Same origin as the app, so cookies and CSRF checks work.
+    handle /api/* {
+        request_body {
+            max_size 64KB
+        }
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    # The React app. Unknown paths load index.html, so app links work on reload.
+    handle {
+        root * /srv/the-catalogue
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+        @pages not path /assets/*
+        header @pages Cache-Control "no-cache"
+        try_files {path} /index.html
+        file_server
+    }
+
+    log {
+        output file /var/log/caddy/thecatalogue-access.log {
+            roll_size 10MiB
+            roll_keep 5
+        }
+    }
+}
+
+# Old address: send visitors to the new one.
+the-catalogue.duckdns.org {
+    redir https://thecatalogue.duckdns.org{uri} permanent
+}
+

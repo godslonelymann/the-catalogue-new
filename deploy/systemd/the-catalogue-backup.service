@@ -1,0 +1,8 @@
+[Unit]
+Description=The Catalogue: database backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/bin/sh -c 'pg_dump -Fc catalogue > /var/backups/the-catalogue/catalogue-$(date +%%Y%%m%%d).dump && find /var/backups/the-catalogue -name "catalogue-*.dump" -mtime +14 -delete'
