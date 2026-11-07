@@ -1,0 +1,46 @@
+[project]
+name = "the-catalogue-api"
+version = "0.1.0"
+description = "FastAPI backend for The Catalogue"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic",
+  "pydantic-settings",
+  "email-validator",
+  "sqlalchemy>=2",
+  "psycopg[binary]>=3",
+  "alembic",
+  "authlib",
+  "httpx",
+  "argon2-cffi",
+  "pyjwt",
+  "pyotp",
+  "cryptography",
+  "httpx2>=2.16.0",
+  "catalogue-pipeline",
+]
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+# The store checks and catalogue reads live in ../pipeline. It has no database code.
+catalogue-pipeline = { path = "../pipeline", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 130
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# FastAPI declares dependencies with Depends() in parameter defaults.
+ignore = ["B008"]

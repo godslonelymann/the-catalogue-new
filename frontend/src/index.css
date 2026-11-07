@@ -1,0 +1,192 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Dashboard design tokens. They apply only inside `.dashboard-theme`: the signed-in
+ * shell and the overlay content (dialogs, sheets, menus) that it opens. The public
+ * sign-in pages keep their own styles in styles.css.
+ */
+@theme inline {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-selected: var(--selected);
+  --color-accent-hover: var(--primary-hover);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-pending: var(--pending);
+  --color-pending-surface: var(--pending-surface);
+  --color-error: var(--error);
+  --color-error-surface: var(--error-surface);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
+  --radius-4xl: 12px;
+}
+
+.dashboard-theme {
+  /* Black and white, from catalogue-prototype.html. Status labels always carry text. */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-hover: #303030;
+  --primary-foreground: #ffffff;
+  --secondary: #f7f7f7;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f7f7f7;
+  --muted-foreground: #5c5c5c;
+  --accent: #f2f2f2;
+  --accent-foreground: #0a0a0a;
+  --destructive: #0a0a0a;
+  --border: #e5e5e5;
+  --input: #828282;
+  --ring: #0a0a0a;
+  --selected: #ededed;
+  --success: #0a0a0a;
+  --success-surface: #ededed;
+  --pending: #5c5c5c;
+  --pending-surface: #f7f7f7;
+  --error: #0a0a0a;
+  --error-surface: #f7f7f7;
+  --radius: 8px;
+  --sidebar: #f7f7f7;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #0a0a0a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ededed;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #0a0a0a;
+
+  --dash-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dash-feedback: 120ms;
+  --dash-indicator: 160ms;
+  --dash-enter: 180ms;
+  --dash-sidebar-width: 192px;
+
+  color-scheme: light;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--foreground);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-theme {
+    --dash-sidebar-width: 224px;
+  }
+}
+
+@layer base {
+  .dashboard-theme,
+  .dashboard-theme * {
+    @apply border-border;
+  }
+}
+
+@layer components {
+  .dash-page-title {
+    font-size: 24px;
+    line-height: 32px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 768px) {
+    .dash-page-title {
+      font-size: 28px;
+      line-height: 36px;
+    }
+  }
+  .dash-section-title {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 600;
+  }
+  /* Product detail. Mobile order: title, image, price and description, variants, history. */
+  .product-layout {
+    grid-template-areas: "title" "image" "info" "variants" "history";
+  }
+  .product-layout > :first-child > header {
+    margin-bottom: 0;
+  }
+  @media (min-width: 768px) {
+    .product-layout {
+      grid-template-areas: "image title" "image info" "image variants" "history history";
+      grid-template-rows: auto auto 1fr auto;
+      align-items: start;
+    }
+  }
+  .dash-meta {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--muted-foreground);
+  }
+}
+
+/* Focus: a 2 px accent outline with a 2 px offset. The default shadcn ring is hidden. */
+.dashboard-theme :focus-visible:not([tabindex="-1"]),
+.dashboard-theme:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  --tw-ring-color: transparent;
+}
+
+/* Overlay entrance: 180 ms. The profile menu moves 4 px from its trigger. */
+.dashboard-theme:is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"], [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="alert-dialog-overlay"])[data-state="open"] {
+  animation-duration: var(--dash-enter);
+  animation-timing-function: var(--dash-ease);
+}
+.dashboard-theme[data-slot="dropdown-menu-content"][data-state="open"] {
+  --tw-enter-translate-y: 4px;
+  animation-duration: var(--dash-enter);
+  animation-timing-function: var(--dash-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-theme,
+  .dashboard-theme *,
+  .dashboard-theme *::before,
+  .dashboard-theme *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .dashboard-theme .product-card:hover img {
+    scale: 1 !important;
+  }
+}

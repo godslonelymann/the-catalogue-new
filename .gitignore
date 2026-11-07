@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# Secrets: never commit these.
+# ---------------------------------------------------------------------------
+# Runtime settings (database, keys, Gmail app password). Commit .env.example only.
+.env
+.env.*
+!.env.example
+# Google OAuth client file (contains the client secret).
+client_secret_*.json
+# Private keys and certificates
+*.pem
+*.key
+
+# ---------------------------------------------------------------------------
+# Frontend (frontend/): Node.js, Vite, Playwright
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+.vite/
+# Playwright and Vitest output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+coverage/
+
+# ---------------------------------------------------------------------------
+# Backend and pipeline (backend/, pipeline/): Python, uv, pytest, ruff
+# ---------------------------------------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------------------------------------------------------------------------
+# Editors, OS, and local tools
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.sw?
+*.suo
+# Claude Code: keep the shared dev-server config, ignore local state.
+.claude/*
+!.claude/launch.json
+**/.claude/
+!/.claude/
+
+# ---------------------------------------------------------------------------
+# Local documents
+# ---------------------------------------------------------------------------
+/docs/
