@@ -8,7 +8,7 @@ thecatalogue.duckdns.org {
         -Server
     }
 
-    # The API. Same origin as the app, so cookies and CSRF checks work.
+    # The API. Vercel forwards /api/* here, so the browser only sees the Vercel address.
     handle /api/* {
         request_body {
             max_size 64KB
@@ -16,15 +16,9 @@ thecatalogue.duckdns.org {
         reverse_proxy 127.0.0.1:8000
     }
 
-    # The React app. Unknown paths load index.html, so app links work on reload.
+    # The app lives on Vercel.
     handle {
-        root * /srv/the-catalogue
-        @assets path /assets/*
-        header @assets Cache-Control "public, max-age=31536000, immutable"
-        @pages not path /assets/*
-        header @pages Cache-Control "no-cache"
-        try_files {path} /index.html
-        file_server
+        redir https://the-catalogue-kappa.vercel.app{uri} permanent
     }
 
     log {
@@ -35,8 +29,8 @@ thecatalogue.duckdns.org {
     }
 }
 
-# Old address: send visitors to the new one.
+# Old address: send visitors to the app.
 the-catalogue.duckdns.org {
-    redir https://thecatalogue.duckdns.org{uri} permanent
+    redir https://the-catalogue-kappa.vercel.app{uri} permanent
 }
 
