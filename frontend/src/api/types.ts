@@ -83,12 +83,15 @@ export interface WishlistItem {
 
 export type Availability = "" | "in" | "out";
 export type PriceBand = "" | "low" | "mid" | "high";
+/** "" is the store's newest products first. "discount" is the biggest sale against the store's own "compare at" price. */
+export type ProductSort = "" | "price_asc" | "price_desc" | "discount";
 
 export interface ProductQuery {
   q?: string;
   size?: string;
   availability?: Availability;
   price?: PriceBand;
+  sort?: ProductSort;
   cursor?: string | null;
 }
 
@@ -114,6 +117,8 @@ export interface Variant {
   compareAtPrice: number | null;
   available: boolean;
   imageUrl: string | null;
+  /** The store's product page with this option chosen. Optional for older responses. */
+  url?: string;
   /** Dated prices for this variant. When absent, the UI uses the product history. */
   priceHistory?: PricePoint[];
 }
@@ -136,6 +141,23 @@ export interface ProductDetail extends ProductSummary {
   alerts: { id: string; variantId: string }[];
 }
 
+/** One UTC day of daily checks. A day with no entry had no check. */
+export interface CheckDay {
+  /** YYYY-MM-DD, in UTC. */
+  day: string;
+  /** True when any check that day passed. */
+  ok: boolean;
+  /** Price and stock changes found that day. */
+  changes: number;
+}
+
+/** The last twelve weeks of daily checks of one store. */
+export interface StoreChecks {
+  from: string;
+  to: string;
+  days: CheckDay[];
+}
+
 export type UpdateKind = "price_drop" | "price_rise" | "restock" | "sold_out";
 
 export interface CatalogueUpdate {
@@ -146,11 +168,23 @@ export interface CatalogueUpdate {
   productId: string;
   productTitle: string;
   imageUrl: string;
+  /** Null when the same change happened to every option. */
+  variantId: string | null;
   variantTitle: string | null;
   currency: string;
   oldPrice: number | null;
   newPrice: number | null;
   at: string;
+  /**
+   * The state now, not at the time of the update. For a change to every option, it is the product's state.
+   * Null when the option is no longer listed.
+   */
+  nowAvailable: boolean | null;
+  nowPrice: number | null;
+  /** True when the signed-in account saved this product. */
+  saved: boolean;
+  /** True when the signed-in account has a size alert on this option (or on any option, for a change to every option). */
+  watched: boolean;
 }
 
 export type AlertStatus = "active" | "sent" | "cancelled";

@@ -174,12 +174,20 @@ describe("product detail", () => {
 
     renderApp(`/stores/fugazee/products/${detail.id}`, api);
     await screen.findByRole("heading", { level: 1, name: detail.title });
-    expect(screen.getByRole("link", { name: /Visit store/ })).toHaveAttribute("href", detail.url);
+    // The first option in stock is chosen: the store link opens it, and there is no alert to set.
+    const inStock = detail.variants.find(variant => variant.available)!;
+    expect(screen.getByRole("link", { name: /^Buy on store/ })).toHaveAttribute("href", `${detail.url}?variant=${inStock.id}`);
+    expect(screen.queryByRole("button", { name: "Email me when it’s back" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Price history" })).toBeInTheDocument();
 
     const [colour, size] = soldOut.options;
     await user.click(screen.getByRole("button", { name: new RegExp(`^Colour ${colour},`) }));
     await user.click(screen.getByRole("button", { name: new RegExp(`^Size ${size},`) }));
+    // A sold-out size doesn't cross out its colour while another size of that colour is in stock.
+    const colourInStock = detail.variants.some(variant => variant.options[0] === colour && variant.available);
+    expect(screen.getByRole("button", { name: new RegExp(`^Colour ${colour},`) })).toHaveAccessibleName(
+      `Colour ${colour}, ${colourInStock ? "in stock" : "sold out"}`,
+    );
     await user.click(screen.getByRole("button", { name: "Email me when it’s back" }));
     expect(await screen.findByText("Watching this size")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: `Remove ${detail.title} from Saved` })).toHaveAttribute("aria-pressed", "true");

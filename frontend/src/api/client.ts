@@ -8,6 +8,7 @@ import type {
   RestockAlert,
   SessionInfo,
   SignInResult,
+  StoreChecks,
   StoresResponse,
   TwoFactorSetup,
   UpdateKind,
@@ -49,6 +50,12 @@ export class ApiError extends Error {
 export const isApiError = (error: unknown, code?: ApiErrorCode): error is ApiError =>
   error instanceof ApiError && (code === undefined || error.code === code);
 
+/** The most updates one listUpdates call returns. A full page means older updates can exist. */
+export const UPDATES_PAGE_SIZE = 200;
+
+/** The API deletes updates after this many days. */
+export const UPDATE_RETENTION_DAYS = 90;
+
 export interface Api {
   readonly mode: "mock" | "http";
 
@@ -79,7 +86,9 @@ export interface Api {
   removeStore(id: string): Promise<void>;
   listProducts(storeId: string, query: ProductQuery): Promise<ProductsResponse>;
   getProduct(storeId: string, productId: string): Promise<ProductDetail>;
-  listUpdates(kind?: UpdateKind): Promise<CatalogueUpdate[]>;
+  listStoreChecks(storeId: string): Promise<StoreChecks>;
+  /** Newest first, up to UPDATES_PAGE_SIZE. Pass the last id as `before` for older updates. */
+  listUpdates(kind?: UpdateKind, before?: string): Promise<CatalogueUpdate[]>;
 
   // Alerts. Each alert watches one sold-out size. Creating one also saves the product.
   listAlerts(): Promise<RestockAlert[]>;

@@ -196,3 +196,18 @@ class CatalogueUpdate(Base):
     variant: Mapped[Variant | None] = relationship()
 
     __table_args__ = (Index("ix_catalogue_updates_store_at", "store_id", "at"),)
+
+
+class StoreCheck(Base):
+    """One read of a store's catalogue: the first import or a daily refresh. Feeds the daily-check grid."""
+
+    __tablename__ = "store_checks"
+
+    id: Mapped[uuid.UUID] = _id()
+    store_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # Updates the check recorded. The first import records none.
+    changes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (Index("ix_store_checks_store_at", "store_id", "at"),)

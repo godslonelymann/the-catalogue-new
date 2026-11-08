@@ -169,9 +169,19 @@ export function useFocusReturn() {
   return { capture, restore };
 }
 
-/** A product in a grid. The whole card links to the product. The heart saves it. */
-export function ProductCard({ product, meta, onSavedChange }: { product: ProductSummary; meta?: string; onSavedChange?(saved: boolean): void }) {
+/** The store's own sale, as a whole percent off its "compare at" price. Zero when there is no sale. */
+export function percentOff(price: number, compareAtPrice: number | null): number {
+  if (!compareAtPrice || compareAtPrice <= price) return 0;
+  return Math.round(((compareAtPrice - price) / compareAtPrice) * 100);
+}
+
+/**
+ * A product in a grid. The whole card links to the product. The heart saves it.
+ * With `size`, the stock label is for that size (the API returns `inStock` for it).
+ */
+export function ProductCard({ product, meta, size = "", onSavedChange }: { product: ProductSummary; meta?: string; size?: string; onSavedChange?(saved: boolean): void }) {
   const varies = product.maxPrice !== undefined && product.maxPrice > product.price;
+  const off = percentOff(product.price, product.compareAtPrice);
   return (
     <Card className="product-card group relative h-full gap-0 overflow-hidden rounded-xl border py-0 ring-0 transition-colors duration-(--dash-feedback) ease-(--dash-ease) hover:border-input">
       <ProductImage
@@ -191,12 +201,24 @@ export function ProductCard({ product, meta, onSavedChange }: { product: Product
             {product.title}
           </Link>
         </h2>
-        <p className="text-sm font-semibold tabular-nums">
-          {varies && <span className="font-normal text-muted-foreground">From </span>}
-          {money(product.price, product.currency)}
+        <p className="flex flex-wrap items-baseline gap-x-2 text-sm tabular-nums">
+          <span className="font-semibold">
+            {varies && <span className="font-normal text-muted-foreground">From </span>}
+            {money(product.price, product.currency)}
+          </span>
+          {off > 0 && (
+            <s className="dash-meta">
+              <span className="sr-only">Was </span>
+              {money(product.compareAtPrice!, product.currency)}
+            </s>
+          )}
         </p>
-        <div className="mt-1">
-          <StockLabel available={product.inStock} />
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {off > 0 && <StatusBadge tone="accent">{off}% off</StatusBadge>}
+          <StatusBadge tone={product.inStock ? "success" : "neutral"}>
+            {product.inStock ? "In stock" : "Sold out"}
+            {size && ` in ${size}`}
+          </StatusBadge>
         </div>
       </div>
     </Card>

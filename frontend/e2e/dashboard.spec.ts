@@ -287,6 +287,9 @@ test.describe("catalogue and product", () => {
     for (const title of await page.getByRole("list", { name: "Products" }).locator("h2").allTextContents()) expect(title).toMatch(/Cargo/);
     expect(api.requests.filter(request => request.includes("q=c") && !request.includes("q=cargo"))).toHaveLength(0);
 
+    // On phones the filters sit behind the Filters button.
+    const filters = page.getByRole("button", { name: /^Filters/ });
+    if (await filters.isVisible()) await filters.click();
     await page.getByRole("radio", { name: "Sold out" }).click();
     await expect(page.getByRole("radio", { name: "Sold out" })).toBeChecked();
     await page.getByLabel("Search products").fill("zzz");
@@ -296,7 +299,8 @@ test.describe("catalogue and product", () => {
 
     await page.getByRole("link", { name: "Racer Club Oversized Tee" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Racer Club Oversized Tee" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Visit store/ })).toHaveAttribute("target", "_blank");
+    await expect(page.getByRole("link", { name: /Buy on store|Visit store/ })).toHaveAttribute("target", "_blank");
+    await expect(page.getByRole("link", { name: /Buy on store|Visit store/ })).toHaveAttribute("href", /\?variant=/);
 
     // Pick a sold-out variant. Sold-out options stay selectable.
     const colours = await page.locator("fieldset").first().getByRole("button").all();
@@ -312,6 +316,7 @@ test.describe("catalogue and product", () => {
     await expect(page.getByRole("button", { name: "Email me when it’s back" })).toBeEnabled();
     await page.getByRole("button", { name: "Email me when it’s back" }).click();
     await expect(page.getByText("Watching this size")).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Visit store/ })).toBeVisible();
     // Setting an alert also saves the product.
     await expect(page.getByRole("button", { name: "Remove Racer Club Oversized Tee from Saved" })).toHaveAttribute("aria-pressed", "true");
 
@@ -330,10 +335,21 @@ test.describe("catalogue and product", () => {
     await expect(row).toHaveCount(1);
 
     await openNav(page, "Updates");
-    const updates = page.getByRole("list", { name: "Updates" }).getByRole("listitem");
-    await expect(updates.first()).toBeVisible();
-    await expect(page.getByRole("list", { name: "Updates" })).toContainText("Price changed");
-    await expect(page.getByRole("list", { name: "Updates" })).toContainText("Back in stock");
+    const main = page.getByRole("main");
+    await expect(main.getByRole("radiogroup", { name: "Show" })).toBeVisible();
+    await expect(main).toContainText("Price drop");
+    await expect(main).toContainText("Back in stock");
+
+    // The filter keeps one kind, and the choice is in the address.
+    await main.getByRole("radio", { name: "Price drops" }).click();
+    await expect(page).toHaveURL(/show=price_drop/);
+    await expect(main).not.toContainText("Back in stock");
+
+    // A card opens the product on the option that changed.
+    await main.getByRole("radio", { name: "Restocks" }).click();
+    const card = main.getByRole("listitem").filter({ hasText: "Back in stock" }).first();
+    await card.getByRole("link").click();
+    await expect(page).toHaveURL(/\/products\/[^?]+\?variant=/);
   });
 });
 

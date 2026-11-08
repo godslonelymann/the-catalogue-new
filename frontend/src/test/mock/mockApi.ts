@@ -2,10 +2,11 @@
 // In-browser mock of the planned FastAPI routes. It keeps each sample account's data
 // apart, so the review can check that one account never sees another account's stores.
 
-import { ApiError, type Api } from "@/api/client";
+import { ApiError, UPDATES_PAGE_SIZE, type Api } from "@/api/client";
 import type {
   Account,
   AlertStatus,
+  CatalogueUpdate,
   MonitoredStore,
   ProductDetail,
   ProductSummary,
@@ -265,8 +266,10 @@ export function createMockApi(options: MockOptions = {}): MockApi {
     wishlist.push({ id: crypto.randomUUID(), productId, savedAt: now() });
   }
 
-  function summary(product: SampleProduct, saved = false): ProductSummary {
+  function summary(product: SampleProduct, saved = false, size = ""): ProductSummary {
     const first = product.variants[0];
+    // With a size filter, "in stock" means in stock in that size, as in the API.
+    const stock = size ? product.variants.filter(variant => variant.options[1] === size) : product.variants;
     return {
       id: product.id,
       storeId: product.storeId,
@@ -277,7 +280,7 @@ export function createMockApi(options: MockOptions = {}): MockApi {
       price: Math.min(...product.variants.map(variant => variant.price)),
       maxPrice: Math.max(...product.variants.map(variant => variant.price)),
       compareAtPrice: first.compareAtPrice,
-      inStock: product.variants.some(variant => variant.available),
+      inStock: stock.some(variant => variant.available),
       colourCount: product.options[0].values.length,
       saved,
     };
@@ -555,8 +558,16 @@ export function createMockApi(options: MockOptions = {}): MockApi {
         if (query.availability === "out" && available) return false;
         return true;
       });
+      const lowest = (product: SampleProduct) => Math.min(...product.variants.map(variant => variant.price));
+      const discount = (product: SampleProduct) => {
+        const compareAt = product.variants[0].compareAtPrice;
+        return compareAt && compareAt > lowest(product) ? (compareAt - lowest(product)) / compareAt : -1;
+      };
+      if (query.sort === "price_asc") matching.sort((a, b) => lowest(a) - lowest(b));
+      if (query.sort === "price_desc") matching.sort((a, b) => lowest(b) - lowest(a));
+      if (query.sort === "discount") matching.sort((a, b) => discount(b) - discount(a));
       const offset = Number(query.cursor ?? 0) || 0;
-      const items = matching.slice(offset, offset + PAGE_SIZE).map(product => summary(product, isSaved(data, product.id)));
+      const items = matching.slice(offset, offset + PAGE_SIZE).map(product => summary(product, isSaved(data, product.id), query.size));
       const next = offset + PAGE_SIZE < matching.length ? String(offset + PAGE_SIZE) : null;
       return { store, items, total: matching.length, nextCursor: next, sizes };
     },
@@ -573,7 +584,7 @@ export function createMockApi(options: MockOptions = {}): MockApi {
         description: product.description,
         url: product.url,
         options: product.options,
-        variants: product.variants.map(variant => ({ ...variant, title: variant.options.join(" / ") })),
+        variants: product.variants.map(variant => ({ ...variant, title: variant.options.join(" / "), url: `${product.url}?variant=${variant.id}` })),
         priceHistory: product.priceHistory,
         lastSuccessfulCheckAt: store.lastSuccessfulCheckAt,
         lastCheckFailed: store.lastCheckFailed,
@@ -584,11 +595,56 @@ export function createMockApi(options: MockOptions = {}): MockApi {
       return detail;
     },
 
-    async listUpdates(kind) {
+    async listStoreChecks(storeId) {
+      await wait();
+      const data = current(load());
+      const store = monitoredStore(data, storeId);
+      const DAY_MS = 86_400_000;
+      const utcDay = (time: number) => new Date(time).toISOString().slice(0, 10);
+      const to = utcDay(now());
+      const from = utcDay(now() - 83 * DAY_MS);
+      if (store.status !== "ready") return { from, to, days: [] };
+      const changes = new Map<string, number>();
+      for (const update of catalogue.updates) {
+        if (update.storeId === storeId) changes.set(utcDay(Date.parse(update.at)), (changes.get(utcDay(Date.parse(update.at))) ?? 0) + 1);
+      }
+      // The sample service has checked every store at 06:00 UTC each day for twelve weeks. A few days failed.
+      const lastOk = Date.parse(catalogue.lastCheckAt.get(storeId) ?? new Date(now()).toISOString());
+      const failing = findStore(storeId)?.behaviour === "last_check_failed";
+      const days = [];
+      for (let back = 83; back >= 0; back--) {
+        const day = utcDay(now() - back * DAY_MS);
+        const checkAt = Date.parse(day + "T06:00:00Z");
+        if (checkAt > now()) continue; // Today's check has not run yet.
+        const seed = [...(storeId + day)].reduce((total, char) => (total * 31 + char.charCodeAt(0)) % 9973, 7);
+        const failed = (failing && checkAt > lastOk) || seed % 29 === 0;
+        days.push({ day, ok: !failed, changes: failed ? 0 : (changes.get(day) ?? 0) });
+      }
+      return { from, to, days };
+    },
+
+    async listUpdates(kind, before) {
       await wait();
       const data = current(load());
       const stores = readyStoreIds(data);
-      return catalogue.updates.filter(update => stores.has(update.storeId) && (!kind || update.kind === kind));
+      const matching = catalogue.updates.filter(update => stores.has(update.storeId) && (!kind || update.kind === kind));
+      let start = 0;
+      if (before) {
+        start = matching.findIndex(update => update.id === before) + 1;
+        if (start === 0) throw new ApiError(422, "invalid_request", "That page of updates is no longer available. Reload the page.");
+      }
+      const watching = data.alerts.filter(alert => alert.status !== "cancelled");
+      return matching.slice(start, start + UPDATES_PAGE_SIZE).map((update): CatalogueUpdate => {
+        const product = productsById.get(update.productId)!;
+        const variant = update.variantId ? product.variants.find(item => item.id === update.variantId) : undefined;
+        return {
+          ...update,
+          nowAvailable: update.variantId ? (variant?.available ?? null) : product.variants.some(item => item.available),
+          nowPrice: update.variantId ? (variant?.price ?? null) : Math.min(...product.variants.map(item => item.price)),
+          saved: isSaved(data, product.id),
+          watched: watching.some(alert => (update.variantId ? alert.variantId === update.variantId : alert.productId === product.id)),
+        };
+      });
     },
 
     async listAlerts() {

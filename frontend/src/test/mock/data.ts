@@ -128,15 +128,18 @@ function lastDailyCheck(now: number): number {
   return check.getTime() > now ? check.getTime() - DAY : check.getTime();
 }
 
+/** An update as the refresh records it. The mock API adds the account's marks and the state now. */
+export type SampleUpdate = Omit<CatalogueUpdate, "nowAvailable" | "nowPrice" | "saved" | "watched">;
+
 export interface SampleCatalogue {
   products: SampleProduct[];
-  updates: CatalogueUpdate[];
+  updates: SampleUpdate[];
   lastCheckAt: Map<string, string>;
 }
 
 export function buildCatalogue(now = Date.now()): SampleCatalogue {
   const products: SampleProduct[] = [];
-  const updates: CatalogueUpdate[] = [];
+  const updates: SampleUpdate[] = [];
   const lastCheckAt = new Map<string, string>();
   const daily = lastDailyCheck(now);
 
@@ -225,7 +228,7 @@ export function buildCatalogue(now = Date.now()): SampleCatalogue {
 
       const base = { storeId: store.id, storeName: store.name, productId: id, productTitle: title, imageUrl: product.imageUrl, currency: "INR" };
       if (compareAtPrice) {
-        updates.push({ ...base, id: "u-drop-" + id, kind: "price_drop", variantTitle: null, oldPrice: compareAtPrice, newPrice: price, at: new Date(changedAt).toISOString() });
+        updates.push({ ...base, id: "u-drop-" + id, kind: "price_drop", variantId: null, variantTitle: null, oldPrice: compareAtPrice, newPrice: price, at: new Date(changedAt).toISOString() });
       }
       const restocked = variants.find(variant => variant.available && hash("restock" + variant.id) % 4 === 0);
       if (restocked) {
@@ -233,6 +236,7 @@ export function buildCatalogue(now = Date.now()): SampleCatalogue {
           ...base,
           id: "u-restock-" + restocked.id,
           kind: "restock",
+          variantId: restocked.id,
           variantTitle: restocked.options.join(" / "),
           oldPrice: null,
           newPrice: null,
@@ -245,6 +249,7 @@ export function buildCatalogue(now = Date.now()): SampleCatalogue {
           ...base,
           id: "u-sold-" + soldOut.id,
           kind: "sold_out",
+          variantId: soldOut.id,
           variantTitle: soldOut.options.join(" / "),
           oldPrice: null,
           newPrice: null,
@@ -257,6 +262,7 @@ export function buildCatalogue(now = Date.now()): SampleCatalogue {
           ...base,
           id: "u-rise-" + rise.id,
           kind: "price_rise",
+          variantId: rise.id,
           variantTitle: rise.options.join(" / "),
           oldPrice: rise.price - 10_000,
           newPrice: rise.price,

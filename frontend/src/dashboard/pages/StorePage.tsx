@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { useApi } from "@/api/ApiContext";
 import { isApiError } from "@/api/client";
-import type { Availability } from "@/api/types";
+import type { Availability, PriceBand, ProductSort } from "@/api/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -13,9 +13,10 @@ import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/p
 import { RadioGroup } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { dateTime, plural } from "@/lib/format";
+import { CheckGrid } from "../charts/CheckGrid";
 import { useAsync } from "@/lib/useAsync";
 import { cn } from "@/lib/utils";
-import { AlertCircleIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, StoreIcon } from "../icons";
+import { AlertCircleIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, SlidersIcon, StoreIcon } from "../icons";
 import { useBreadcrumbs } from "../context";
 import { PageHeader, ProductCard, RetryAlert } from "../parts";
 
@@ -50,7 +51,11 @@ export function StorePage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const availability = (params.get("availability") ?? "") as Availability;
-  const filterKey = `${storeId}|${q}|${availability}`;
+  const size = params.get("size") ?? "";
+  const price = (priceOptions.some(option => option.value === params.get("price")) ? params.get("price") : "") as PriceBand;
+  const sort = (sortOptions.some(option => option.value === params.get("sort")) ? params.get("sort") : "") as ProductSort;
+  const filterKey = `${storeId}|${q}|${availability}|${size}|${price}|${sort}`;
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Cursor pagination. A search or filter change starts again at page 1.
   const [pages, setPages] = useState<{ key: string; cursors: (string | null)[]; index: number; pageSize: number | null }>({
@@ -64,7 +69,7 @@ export function StorePage() {
   const cursor = paging.cursors[paging.index];
 
   // Only the response for the current search, filter, and page is applied.
-  const result = useAsync(() => api.listProducts(storeId, { q, availability, cursor }), `${filterKey}|${cursor ?? ""}`);
+  const result = useAsync(() => api.listProducts(storeId, { q, availability, size, price, sort, cursor }), `${filterKey}|${cursor ?? ""}`);
   const data = result.data;
   const current = data && result.data !== undefined ? data : undefined;
 
@@ -116,7 +121,8 @@ export function StorePage() {
 
   if (!current && isApiError(result.error, "not_found")) return <NotFoundState what="store" />;
 
-  const filtered = q !== "" || availability !== "";
+  const filtered = q !== "" || availability !== "" || size !== "" || price !== "";
+  const activeFilters = [availability, size, price, sort].filter(Boolean).length;
   const clearFilters = () => {
     setSearch("");
     setParams(new URLSearchParams(), { replace: true });
@@ -129,13 +135,15 @@ export function StorePage() {
         meta={
           store?.lastSuccessfulCheckAt ? (
             <>
-              Last successful check <time dateTime={store.lastSuccessfulCheckAt}>{dateTime(store.lastSuccessfulCheckAt)}</time>
+              Prices and stock from <time dateTime={store.lastSuccessfulCheckAt}>{dateTime(store.lastSuccessfulCheckAt)}</time>
             </>
           ) : store ? (
-            "Awaiting first successful check"
+            "Not checked yet"
           ) : null
         }
       />
+
+      {store?.status === "ready" && <DailyChecks storeId={storeId} />}
 
       {result.error && !isApiError(result.error, "not_found") ? <RetryAlert error={result.error} onRetry={result.reload} title="Couldn’t load products" /> : null}
 
@@ -170,19 +178,41 @@ export function StorePage() {
         </Empty>
       ) : (
         <>
-          <div role="search" aria-label="Product filters" className="mb-4 flex flex-col gap-3 border-b pb-4 md:flex-row md:items-end md:justify-between">
-            <Field className="md:max-w-sm">
-              <FieldLabel htmlFor="product-search">Search products</FieldLabel>
-              <div className="relative">
-                <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                <Input id="product-search" type="search" className="pl-9" placeholder="Search by name or colour" autoComplete="off" value={search} onChange={event => setSearch(event.target.value)} />
+          <div role="search" aria-label="Product filters" className="mb-4 flex flex-col gap-3 border-b pb-4">
+            <div className="flex items-end gap-3">
+              <Field className="min-w-0 flex-1 md:max-w-sm">
+                <FieldLabel htmlFor="product-search">Search products</FieldLabel>
+                <div className="relative">
+                  <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input id="product-search" type="search" className="pl-9" placeholder="Search by name or colour" autoComplete="off" value={search} onChange={event => setSearch(event.target.value)} />
+                </div>
+              </Field>
+              <Button
+                variant="outline"
+                className="border-input md:hidden"
+                aria-expanded={filtersOpen}
+                aria-controls="product-filter-panel"
+                onClick={() => setFiltersOpen(open => !open)}
+              >
+                <SlidersIcon aria-hidden="true" />
+                Filters{activeFilters ? ` (${activeFilters})` : ""}
+              </Button>
+              <div className="ml-auto hidden md:block">
+                <SelectFilter id="product-sort" label="Sort" value={sort} options={sortOptions} onChange={value => setFilter("sort", value)} />
               </div>
-            </Field>
-            <AvailabilityFilter value={availability} onChange={value => setFilter("availability", value)} />
+            </div>
+            <div id="product-filter-panel" className={cn("flex-col gap-4 md:flex md:flex-row md:flex-wrap md:items-end md:gap-6", filtersOpen ? "flex" : "hidden")}>
+              {current && current.sizes.length > 0 && <SizeFilter sizes={current.sizes} value={size} onChange={value => setFilter("size", value)} />}
+              <AvailabilityFilter value={availability} size={size} onChange={value => setFilter("availability", value)} />
+              <SelectFilter id="product-price" label="Price" value={price} options={priceOptions} onChange={value => setFilter("price", value)} />
+              <div className="md:hidden">
+                <SelectFilter id="product-sort-mobile" label="Sort" value={sort} options={sortOptions} onChange={value => setFilter("sort", value)} />
+              </div>
+            </div>
           </div>
 
           <p className="dash-meta mb-3 tabular-nums" aria-live="polite">
-            {current ? (result.loading ? "Updating…" : plural(current.total, "product")) : " "}
+            {current ? (result.loading ? "Updating…" : `${plural(current.total, "product")}${size ? ` in size ${size}` : ""}`) : " "}
           </p>
 
           {!current && !result.error && <ProductGridSkeleton />}
@@ -220,7 +250,7 @@ export function StorePage() {
             <ul aria-label="Products" className={cn("grid grid-cols-1 gap-3 min-[22.5rem]:grid-cols-2 md:grid-cols-3 md:gap-4 min-[75rem]:grid-cols-4", result.loading && "opacity-70")} aria-busy={result.loading}>
               {current.items.map(product => (
                 <li key={product.id}>
-                  <ProductCard product={product} />
+                  <ProductCard product={product} size={size} />
                 </li>
               ))}
             </ul>
@@ -255,13 +285,108 @@ export function StorePage() {
   );
 }
 
+const priceOptions: { value: PriceBand; label: string }[] = [
+  { value: "", label: "Any price" },
+  { value: "low", label: "Lower prices" },
+  { value: "mid", label: "Middle prices" },
+  { value: "high", label: "Higher prices" },
+];
+
+const sortOptions: { value: ProductSort; label: string }[] = [
+  { value: "", label: "Newest" },
+  { value: "discount", label: "Biggest sale" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
+];
+
+/** Twelve weeks of daily checks, as the grid from the landing page. */
+function DailyChecks({ storeId }: { storeId: string }) {
+  const api = useApi();
+  const checks = useAsync(() => api.listStoreChecks(storeId), `checks|${storeId}`);
+  if (checks.error || !checks.data) return null;
+  return (
+    <section aria-labelledby="daily-checks-title" className="mb-6 flex flex-col gap-4 rounded-xl border p-4 md:flex-row md:items-start md:justify-between md:gap-8 md:p-5">
+      <div className="min-w-0 md:max-w-xs">
+        <h2 id="daily-checks-title" className="dash-section-title">
+          Daily checks
+        </h2>
+        <p className="dash-meta mt-1">We read every product in this store once a day. Darker days had more price and stock changes.</p>
+      </div>
+      <CheckGrid checks={checks.data} />
+    </section>
+  );
+}
+
+/** A labelled native select. */
+function SelectFilter<T extends string>({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange(value: T): void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={event => onChange(event.target.value as T)}
+        className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:w-48 md:text-sm"
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** Size chips from the store's own sizes. Choosing the chosen size again clears it. */
+function SizeFilter({ sizes, value, onChange }: { sizes: string[]; value: string; onChange(value: string): void }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <span id="size-filter-label" className="text-sm font-medium">
+        Size
+      </span>
+      <div role="group" aria-labelledby="size-filter-label" className="flex flex-wrap gap-2">
+        {["", ...sizes].map(item => {
+          const pressed = item === value;
+          return (
+            <Button
+              key={item || "any"}
+              type="button"
+              variant="outline"
+              aria-pressed={pressed}
+              onClick={() => onChange(pressed ? "" : item)}
+              className={cn("min-w-11 border-input px-3", pressed && "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground")}
+            >
+              {item || "Any"}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** A segmented radio group with a sliding indicator behind the selected option. */
-function AvailabilityFilter({ value, onChange }: { value: Availability; onChange(value: Availability): void }) {
+function AvailabilityFilter({ value, size, onChange }: { value: Availability; size: string; onChange(value: Availability): void }) {
   const index = Math.max(0, availabilityOptions.findIndex(option => option.value === value));
   return (
     <div className="flex flex-col gap-2">
       <span id="availability-label" className="text-sm font-medium">
-        Availability
+        Availability{size && <span className="font-normal text-muted-foreground"> in size {size}</span>}
       </span>
       <RadioGroup
         aria-labelledby="availability-label"

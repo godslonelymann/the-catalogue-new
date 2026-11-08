@@ -34,6 +34,7 @@ from .models import (
     Brand,
     CatalogueUpdate,
     Store,
+    StoreCheck,
     StoreCheckFailure,
     StoreHost,
 )
@@ -261,10 +262,12 @@ def run_import(store_id: uuid.UUID, checker: StoreChecker) -> None:
         if result is not None and result.approved:
             records = [normalise_product(product, store.primary_host, store.currency) for product in result.products]
             # The first import has nothing to compare with, so it records no updates.
-            save_catalogue(db, store, records, now, record_updates=store.last_successful_check_at is not None)
+            changes = save_catalogue(db, store, records, now, record_updates=store.last_successful_check_at is not None)
+            db.add(StoreCheck(store_id=store.id, at=now, ok=True, changes=changes))
             db.execute(
                 delete(CatalogueUpdate).where(CatalogueUpdate.store_id == store.id, CatalogueUpdate.at < now - UPDATE_RETENTION)
             )
+            db.execute(delete(StoreCheck).where(StoreCheck.store_id == store.id, StoreCheck.at < now - UPDATE_RETENTION))
             store.approval = APPROVED
             store.approved_at = store.approved_at or now
             store.approval_reason = None
@@ -284,6 +287,7 @@ def run_import(store_id: uuid.UUID, checker: StoreChecker) -> None:
             else:
                 store.import_status = READY
                 store.last_check_failed = True
+                db.add(StoreCheck(store_id=store.id, at=now, ok=False))
         db.commit()
         log.info("Import of %s: %s", store.shop_domain, store.import_status)
 
@@ -322,6 +326,8 @@ def refresh_store(store_id: uuid.UUID, checker: StoreChecker) -> str:
             store = db.get(Store, store_id, with_for_update=True)
             store.last_checked_at = utcnow()
             store.last_check_failed = True
+            if not first_import:
+                db.add(StoreCheck(store_id=store.id, at=store.last_checked_at, ok=False))
             store.approval_reason = str(result.reason)
             if result.outcome == Outcome.REJECTED:
                 store.approval = REVOKED

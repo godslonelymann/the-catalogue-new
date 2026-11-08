@@ -25,7 +25,7 @@ from app.main import create_app  # noqa: E402
 
 ORIGIN = "http://localhost:5173"
 TABLES = (
-    "wishlist_items, restock_alerts, catalogue_updates, price_points, variants, products, "
+    "wishlist_items, restock_alerts, store_checks, catalogue_updates, price_points, variants, products, "
     "account_stores, store_hosts, stores, brands, "
     "store_check_failures, "
     "recovery_codes, two_factor_challenges, oauth_states, auth_tokens, sessions, auth_identities, accounts, rate_limits"

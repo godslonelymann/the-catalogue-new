@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .errors import install_error_handlers
-from .routes import account, alerts, auth, products, stores, updates, wishlist
+from .routes import account, alerts, auth, checks, products, stores, updates, wishlist
 from .sessions import CSRF_COOKIE, CSRF_HEADER, new_csrf_token, set_csrf_cookie
 
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(account.router)
     app.include_router(stores.router)
     app.include_router(products.router)
+    app.include_router(checks.router)
     app.include_router(updates.router)
     app.include_router(alerts.router)
     app.include_router(wishlist.router)

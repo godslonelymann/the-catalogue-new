@@ -2,7 +2,9 @@
 export {
   Activity as PulseIcon,
   AlertCircle as AlertCircleIcon,
+  ArrowDown as ArrowDownIcon,
   ArrowRight as ArrowRightIcon,
+  ArrowUp as ArrowUpIcon,
   Bell as BellIcon,
   BellRing as BellRingIcon,
   ChevronLeft as ChevronLeftIcon,
@@ -20,5 +22,6 @@ export {
   Search as SearchIcon,
   Settings as SettingsIcon,
   ShieldCheck as ShieldCheckIcon,
+  SlidersHorizontal as SlidersIcon,
   Store as StoreIcon,
 } from "lucide-react";

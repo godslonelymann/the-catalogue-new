@@ -45,7 +45,7 @@ for (const width of widths) {
     await shot("06-saved");
 
     await page.goto("/updates");
-    await page.getByRole("list", { name: "Updates" }).waitFor();
+    await page.getByRole("radiogroup", { name: "Show" }).waitFor();
     await shot("07-updates");
 
     await page.goto("/stores?settings=profile");

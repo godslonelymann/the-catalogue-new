@@ -1,7 +1,7 @@
 """
 Catalogue routes for one monitored store.
 
-    GET /api/stores/{store_id}/products?q=&size=&availability=&price=&cursor=
+    GET /api/stores/{store_id}/products?q=&size=&availability=&price=&sort=&cursor=
     GET /api/stores/{store_id}/products/{product_id}
 
 The account must monitor the store. Until the first import is ready, the list is empty and details are 404.
@@ -13,7 +13,7 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import Select, and_, exists, func, or_, select
+from sqlalchemy import Float, Select, and_, case, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from ..alerts.service import active_alerts_for_product
@@ -121,6 +121,33 @@ def filtered(db: Session, store_id: uuid.UUID, q: str, size: str, availability: 
     return query
 
 
+# The share of the store's own "compare at" price taken off. Products with no sale sort last.
+_discount = cast(Product.compare_at_price - Product.min_price, Float) / func.nullif(Product.compare_at_price, 0)
+
+ORDERS = {
+    "": (),
+    "price_asc": (Product.min_price.asc(),),
+    "price_desc": (Product.min_price.desc(),),
+    "discount": (case((Product.compare_at_price > Product.min_price, _discount), else_=None).desc().nulls_last(),),
+}
+
+
+def sizes_in_stock(db: Session, product_ids: list[uuid.UUID], size: str) -> set[uuid.UUID]:
+    """Products, among these, with an option in this size that is in stock."""
+    if not product_ids:
+        return set()
+    return set(
+        db.scalars(
+            select(Variant.product_id).where(
+                Variant.product_id.in_(product_ids),
+                Variant.size == size,
+                Variant.available.is_(True),
+                Variant.removed_at.is_(None),
+            )
+        )
+    )
+
+
 def store_sizes(db: Session, store_id: uuid.UUID) -> list[str]:
     sizes = db.scalars(
         select(Variant.size)
@@ -152,6 +179,7 @@ def list_products(
     size: str = Query("", max_length=120),
     availability: Literal["", "in", "out"] = "",
     price: Literal["", "low", "mid", "high"] = "",
+    sort: Literal["", "price_asc", "price_desc", "discount"] = "",
     cursor: str | None = Query(None, max_length=20),
     auth: Auth = Depends(require_auth),
     db: Session = Depends(get_db),
@@ -163,14 +191,23 @@ def list_products(
         return {"store": view, "items": [], "total": 0, "nextCursor": None, "sizes": []}
 
     offset = int(cursor) if cursor and cursor.isdigit() and int(cursor) <= MAX_OFFSET else 0
-    query = filtered(db, store.id, q.strip(), size.strip(), availability, price)
+    size = size.strip()
+    query = filtered(db, store.id, q.strip(), size, availability, price)
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
-    products = db.scalars(query.order_by(Product.shopify_id.desc()).offset(offset).limit(PAGE_SIZE)).all()
+    products = db.scalars(query.order_by(*ORDERS[sort], Product.shopify_id.desc()).offset(offset).limit(PAGE_SIZE)).all()
     saved = saved_product_ids(db, auth.account.id, [product.id for product in products])
+    in_size = sizes_in_stock(db, [product.id for product in products], size) if size else None
     next_cursor = str(offset + PAGE_SIZE) if offset + PAGE_SIZE < total else None
+    items = []
+    for product in products:
+        item = summary(product, store, product.id in saved)
+        if in_size is not None:
+            # With a size filter, "in stock" means in stock in that size.
+            item["inStock"] = product.id in in_size
+        items.append(item)
     return {
         "store": view,
-        "items": [summary(product, store, product.id in saved) for product in products],
+        "items": items,
         "total": total,
         "nextCursor": next_cursor,
         "sizes": store_sizes(db, store.id),
@@ -209,6 +246,8 @@ def get_product(store_id: uuid.UUID, product_id: uuid.UUID, auth: Auth = Depends
                 "compareAtPrice": variant.compare_at_price,
                 "available": variant.available,
                 "imageUrl": variant.image_url,
+                # Opens the store's product page with this option chosen.
+                "url": f"{product.url}?variant={variant.shopify_id}",
                 "priceHistory": history.get(variant.id, []),
             }
             for variant in variants

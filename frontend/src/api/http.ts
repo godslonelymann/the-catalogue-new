@@ -12,6 +12,7 @@ import type {
   RestockAlert,
   SessionInfo,
   SignInResult,
+  StoreChecks,
   StoresResponse,
   TwoFactorSetup,
   UpdateKind,
@@ -164,10 +165,11 @@ export function createHttpApi(base = "/api", fetcher: typeof fetch = (...args) =
       request<ProductsResponse>(
         "GET",
         `/stores/${id(storeId)}/products` +
-          query({ q: params.q, size: params.size, availability: params.availability, price: params.price, cursor: params.cursor }),
+          query({ q: params.q, size: params.size, availability: params.availability, price: params.price, sort: params.sort, cursor: params.cursor }),
       ),
     getProduct: (storeId, productId) => request<ProductDetail>("GET", `/stores/${id(storeId)}/products/${id(productId)}`),
-    listUpdates: (kind?: UpdateKind) => request<CatalogueUpdate[]>("GET", "/updates" + query({ kind })),
+    listStoreChecks: storeId => request<StoreChecks>("GET", `/stores/${id(storeId)}/checks`),
+    listUpdates: (kind?: UpdateKind, before?: string) => request<CatalogueUpdate[]>("GET", "/updates" + query({ kind, before })),
 
     listAlerts: () => request<RestockAlert[]>("GET", "/alerts"),
     createAlert: input => request<RestockAlert>("POST", "/alerts", input),

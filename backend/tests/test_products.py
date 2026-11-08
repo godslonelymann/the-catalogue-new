@@ -103,9 +103,44 @@ def test_filters(user, store_id, params, expected):
     assert titles(products(user, store_id, **params)) == expected
 
 
+@pytest.mark.parametrize(
+    ("sort", "expected"),
+    [
+        ("price_asc", ["Racer Tee", "Boxy Shirt", "Field Jacket"]),
+        ("price_desc", ["Field Jacket", "Boxy Shirt", "Racer Tee"]),
+    ],
+)
+def test_sort_by_price(user, store_id, sort, expected):
+    assert titles(products(user, store_id, sort=sort)) == expected
+
+
+def test_sort_by_discount_puts_the_biggest_sale_first(user, checker):
+    def on_sale(pid: int, title: str, price: str, compare_at: str | None) -> dict:
+        product = tee(pid, title, price, {("Black", "S"): True})
+        product["variants"][0]["compare_at_price"] = compare_at
+        return product
+
+    checker.catalogues["fugazee.myshopify.com"] = approved_catalogue(
+        on_sale(1, "No Sale", "999.00", None),
+        on_sale(2, "Small Sale", "900.00", "1000.00"),
+        on_sale(3, "Big Sale", "500.00", "1000.00"),
+    )
+    store_id = add(user, "fugazee.com").json()["store"]["id"]
+    assert titles(products(user, store_id, sort="discount")) == ["Big Sale", "Small Sale", "No Sale"]
+
+
+def test_in_stock_follows_the_size_filter(user, store_id):
+    racer = next(item for item in products(user, store_id, size="M")["items"] if item["title"] == "Racer Tee")
+    assert racer["inStock"] is False  # In stock in S, sold out in M.
+    racer = next(item for item in products(user, store_id, size="S")["items"] if item["title"] == "Racer Tee")
+    assert racer["inStock"] is True
+
+
 def test_bad_filter_values_are_refused(user, store_id):
     response = user.get(f"/api/stores/{store_id}/products", params={"availability": "maybe"})
     assert (response.status_code, response.json()["detail"]["code"]) == (422, "invalid_request")
+    response = user.get(f"/api/stores/{store_id}/products", params={"sort": "newest"})
+    assert response.status_code == 422
 
 
 def test_pages_use_a_cursor(user, checker):
@@ -131,6 +166,10 @@ def test_product_detail(user, store_id):
     assert [(v["options"], v["available"], v["price"]) for v in detail["variants"]] == [
         (["Black", "S"], True, 99900),
         (["Black", "M"], False, 99900),
+    ]
+    assert [v["url"] for v in detail["variants"]] == [
+        "https://fugazee.com/products/p-1?variant=100",
+        "https://fugazee.com/products/p-1?variant=101",
     ]
     assert detail["alerts"] == [] and detail["lastCheckFailed"] is False
     assert detail["priceHistory"] == [{"at": detail["lastSuccessfulCheckAt"], "price": 99900}]

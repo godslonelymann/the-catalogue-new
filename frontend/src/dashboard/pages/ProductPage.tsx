@@ -1,20 +1,24 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { useMemo, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useApi } from "@/api/ApiContext";
 import { isApiError } from "@/api/client";
-import type { ProductDetail, Variant } from "@/api/types";
+import type { PricePoint, ProductDetail, Variant } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dateTime, money, shortDate } from "@/lib/format";
+import { dateTime, money } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { cn } from "@/lib/utils";
 import { BellIcon, BellRingIcon, ExternalLinkIcon, LoaderIcon } from "../icons";
 import { useBreadcrumbs } from "../context";
-import { PageHeader, ProductImage, RetryAlert, SaveToggle, StatusBadge, StockLabel } from "../parts";
+import { PageHeader, ProductImage, RetryAlert, SaveToggle, StockLabel } from "../parts";
 import { NotFoundState } from "./StorePage";
+import { PriceChart } from "../charts/PriceChart";
+import { dailyPrices } from "../charts/series";
 
 export function ProductPage() {
   const { storeId = "", productId = "" } = useParams();
+  // Links from Updates name the option that changed, so the page opens on it.
+  const [params] = useSearchParams();
   const api = useApi();
   const product = useAsync(() => api.getProduct(storeId, productId), `${storeId}/${productId}`);
   const data = product.data?.id === productId ? product.data : undefined;
@@ -31,17 +35,18 @@ export function ProductPage() {
   return (
     <>
       {product.error ? <RetryAlert error={product.error} onRetry={product.reload} title="Couldn’t refresh this product" /> : null}
-      <ProductView key={data.id} product={data} onChange={product.reload} />
+      <ProductView key={data.id} product={data} initialVariantId={params.get("variant")} onChange={product.reload} />
     </>
   );
 }
 
 const defaultVariant = (product: ProductDetail) => product.variants.find(variant => variant.available) ?? product.variants[0];
+const startVariant = (product: ProductDetail, id: string | null) => product.variants.find(variant => variant.id === id) ?? defaultVariant(product);
 const sameOptions = (a: string[], b: string[]) => a.every((value, index) => value === b[index]);
 
-function ProductView({ product, onChange }: { product: ProductDetail; onChange(): Promise<void> }) {
+function ProductView({ product, initialVariantId = null, onChange }: { product: ProductDetail; initialVariantId?: string | null; onChange(): Promise<void> }) {
   const api = useApi();
-  const [selected, setSelected] = useState<string[]>(() => defaultVariant(product).options);
+  const [selected, setSelected] = useState<string[]>(() => startVariant(product, initialVariantId).options);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -107,8 +112,13 @@ function ProductView({ product, onChange }: { product: ProductDetail; onChange()
             </legend>
             <div className="flex flex-wrap gap-2">
               {option.values.map(value => {
+                // The last option (usually size) is sold out for the exact choice. Earlier options (usually colour)
+                // are sold out only when no option with that value is in stock, so one sold-out size doesn't cross out a colour.
+                const last = optionIndex === product.options.length - 1;
                 const match = lookup(optionIndex, value);
-                const soldOut = match ? !match.available : true;
+                const soldOut = last
+                  ? !match?.available
+                  : !product.variants.some(item => item.options[optionIndex] === value && item.available);
                 const pressed = selected[optionIndex] === value;
                 return (
                   <Button
@@ -120,7 +130,7 @@ function ProductView({ product, onChange }: { product: ProductDetail; onChange()
                     onClick={() => choose(optionIndex, value)}
                     className={cn(
                       "min-w-11 border-input",
-                      soldOut && "text-muted-foreground line-through decoration-1",
+                      soldOut && "border-dashed text-muted-foreground line-through decoration-1",
                       pressed && "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
                     )}
                   >
@@ -131,6 +141,9 @@ function ProductView({ product, onChange }: { product: ProductDetail; onChange()
             </div>
           </fieldset>
         ))}
+        {product.variants.some(item => !item.available) && (
+          <p className="dash-meta -mt-2">Crossed-out options are sold out. Choose one to get an email when it is back.</p>
+        )}
 
         <div className="flex flex-col gap-4 rounded-xl border p-4" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -141,24 +154,27 @@ function ProductView({ product, onChange }: { product: ProductDetail; onChange()
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild>
-              <a href={product.url} target="_blank" rel="noopener noreferrer">
-                Visit store
-                <ExternalLinkIcon aria-hidden="true" />
-                <span className="sr-only">(opens in a new tab)</span>
-              </a>
-            </Button>
-            {alertActive ? (
-              <StatusBadge tone="accent">
-                <BellRingIcon className="size-3.5" aria-hidden="true" />
-                Watching this size
-              </StatusBadge>
-            ) : (
-              <Button variant="outline" className="border-input" disabled={pending || variant.available} onClick={() => void createAlert()}>
+            {/* A sold-out option leads with the alert. An in-stock one leads with the store. */}
+            {!variant.available && !alertActive && (
+              <Button disabled={pending} onClick={() => void createAlert()}>
                 {pending ? <LoaderIcon className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <BellIcon aria-hidden="true" />}
                 Email me when it’s back
               </Button>
             )}
+            {alertActive && (
+              // A status, not a button, but the same size as the buttons next to it.
+              <span className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg border border-transparent bg-primary px-4 text-sm font-medium whitespace-nowrap text-primary-foreground">
+                <BellRingIcon className="size-4" aria-hidden="true" />
+                Watching this size
+              </span>
+            )}
+            <Button asChild variant={variant.available ? "default" : "outline"} className={cn(!variant.available && "border-input")}>
+              <a href={variant.url ?? product.url} target="_blank" rel="noopener noreferrer">
+                {variant.available ? "Buy on store" : "Visit store"}
+                <ExternalLinkIcon aria-hidden="true" />
+                <span className="sr-only">(opens {variant.title} in a new tab)</span>
+              </a>
+            </Button>
           </div>
           <p className="dash-meta">
             {alertActive ? (
@@ -170,9 +186,9 @@ function ProductView({ product, onChange }: { product: ProductDetail; onChange()
                 .
               </>
             ) : variant.available ? (
-              "This option is in stock. Alerts are for sold-out options."
+              `Opens ${variant.title} on the store’s website.`
             ) : (
-              "Get one email when this exact option is back in stock. The product is also saved."
+              "We send one email when this exact option is back in stock. The product is also saved."
             )}
           </p>
           {error && (
@@ -183,42 +199,36 @@ function ProductView({ product, onChange }: { product: ProductDetail; onChange()
         </div>
       </div>
 
-      <section aria-labelledby="history-title" className="[grid-area:history]">
-        <h2 id="history-title" className="dash-section-title">
-          Price history
-        </h2>
-        <p className="dash-meta mb-3">
-          {variant.title}
-          {product.lastSuccessfulCheckAt && (
-            <>
-              {" "}
-              · Last successful check <time dateTime={product.lastSuccessfulCheckAt}>{dateTime(product.lastSuccessfulCheckAt)}</time>
-            </>
-          )}
-        </p>
-        <ol className="divide-y rounded-xl border">
-          {[...history].reverse().map((point, index, list) => {
-            const previous = list[index + 1];
-            const change = previous ? point.price - previous.price : 0;
-            return (
-              <li key={point.at} className="flex items-center justify-between gap-4 px-4 py-3 tabular-nums">
-                <time dateTime={point.at} className="text-muted-foreground">
-                  {shortDate(point.at)}
-                </time>
-                <span className="flex items-center gap-2">
-                  {change !== 0 && (
-                    <span className="dash-meta">
-                      {change < 0 ? "Down" : "Up"} {money(Math.abs(change), product.currency)}
-                    </span>
-                  )}
-                  <span className="font-semibold">{money(point.price, product.currency)}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
+      <PriceHistory key={variant.id} variant={variant} history={history} currency={product.currency} checkedAt={product.lastSuccessfulCheckAt} />
     </div>
+  );
+}
+
+/** The price chart from the landing page, with the selected option's real prices, and the changes as a list. */
+function PriceHistory({ variant, history, currency, checkedAt }: { variant: Variant; history: PricePoint[]; currency: string; checkedAt: string | null }) {
+  const ranges = useMemo(() => ({ "30D": dailyPrices(history, 30), "90D": dailyPrices(history, 90) }), [history]);
+  return (
+    <section aria-labelledby="history-title" className="[grid-area:history]">
+      <h2 id="history-title" className="dash-section-title">
+        Price history
+      </h2>
+      <p className="dash-meta mb-3">
+        {variant.title}
+        {checkedAt && (
+          <>
+            {" "}
+            · Prices from <time dateTime={checkedAt}>{dateTime(checkedAt)}</time>
+          </>
+        )}
+      </p>
+      {ranges["90D"].length > 0 ? (
+        <div className="rounded-xl border p-4 md:p-5">
+          <PriceChart data={ranges} currency={currency} defaultRange="90D" title={`Price of ${variant.title}`} height={220} />
+        </div>
+      ) : (
+        <p className="dash-meta rounded-xl border p-4">No prices recorded yet.</p>
+      )}
+    </section>
   );
 }
 
