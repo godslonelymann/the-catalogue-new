@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { AppRoutes } from "./App";
 import { ApiContext } from "./api/ApiContext";
+import { ApiError } from "./api/client";
 import { AuthProvider } from "./auth/AuthContext";
 import { ToastProvider } from "./components/Toast";
 import { createMockApi } from "./test/mock/mockApi";
@@ -198,5 +199,30 @@ describe("product detail", () => {
     const [saved] = await api.listWishlist();
     expect(saved.product.id).toBe(detail.id);
     expect(saved.alerts.map(alert => [alert.variantId, alert.status])).toEqual([[soldOut.id, "active"]]);
+  });
+});
+
+describe("sign-up", () => {
+  it("shows an alert when the sign-up request fails", async () => {
+    const user = userEvent.setup();
+    const api = createMockApi({ delayMs: 0 });
+    api.requestSignup = async () => {
+      throw new ApiError(429, "rate_limited", "Slow down.");
+    };
+    renderApp("/signup", api);
+    await user.type(await screen.findByLabelText("Email"), "a@example.com");
+    await user.click(screen.getByRole("button", { name: "Send confirmation link" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many tries. Wait a minute, then try again.");
+    expect(screen.getByRole("button", { name: "Send confirmation link" })).toBeEnabled();
+  });
+
+  it("moves focus to the email field after an empty submit", async () => {
+    const user = userEvent.setup();
+    renderApp("/signup");
+    await user.click(await screen.findByRole("button", { name: "Send confirmation link" }));
+
+    expect(screen.getByLabelText("Email")).toHaveFocus();
+    expect(screen.getByText("Enter a valid email address.")).toBeInTheDocument();
   });
 });

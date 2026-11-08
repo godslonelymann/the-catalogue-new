@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { Children, useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useApi, useSampleTools } from "../api/ApiContext";
+import { ApiError } from "../api/client";
 import type { SignInResult } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { Icon } from "../components/Icon";
-import { PublicFrame } from "../components/Layout";
+import { SkipLink, Wordmark } from "../components/Layout";
+import { DURATION, SPRING, reveal, stagger } from "../components/landing/motion";
 import { useToast } from "../components/Toast";
 
 interface LocationState {
@@ -12,27 +15,113 @@ interface LocationState {
   notice?: string;
 }
 
-function AuthBox({ title, description, nav, children }: { title: string; description: ReactNode; nav?: ReactNode; children: ReactNode }) {
+/**
+ * The shell for every auth page, in the light landing style.
+ * `topLink` sits at the right of the top bar. `aside` turns on the split layout:
+ * the form on the left and a dark product panel on the right (1024 px and wider).
+ */
+function AuthBox({
+  title,
+  description,
+  topLink,
+  aside,
+  icon,
+  children,
+}: {
+  title: string;
+  description: ReactNode;
+  topLink?: ReactNode;
+  aside?: ReactNode;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const reduced = useReducedMotion() ?? false;
+  const item = reveal(reduced);
   useEffect(() => {
     document.title = `${title} · The Catalogue`;
     heading.current?.focus({ preventScroll: true });
   }, [title]);
-  return (
-    <PublicFrame nav={nav}>
-      <main className="auth-main" id="main" tabIndex={-1}>
-        <section className="auth-box card" aria-labelledby="auth-title">
-          <header>
-            <h1 id="auth-title" tabIndex={-1} ref={heading}>
-              {title}
-            </h1>
-            <p className="muted">{description}</p>
-          </header>
-          {children}
-        </section>
-      </main>
-    </PublicFrame>
+
+  const top = (
+    <header className="l-wrap auth-top">
+      <Wordmark to="/" />
+      {topLink && <p className="auth-top-link">{topLink}</p>}
+    </header>
   );
+
+  const box = (
+    <main className="auth-main" id="main" tabIndex={-1}>
+      <motion.section
+        className={"auth-box " + (aside ? "plain" : "card")}
+        aria-labelledby="auth-title"
+        variants={stagger()}
+        initial="hidden"
+        animate="shown"
+      >
+        <motion.header variants={item}>
+          {icon}
+          <h1 id="auth-title" tabIndex={-1} ref={heading}>
+            {title}
+          </h1>
+          <p className="muted">{description}</p>
+        </motion.header>
+        {Children.toArray(children).map((child, i) => (
+          <motion.div key={i} variants={item}>
+            {child}
+          </motion.div>
+        ))}
+      </motion.section>
+    </main>
+  );
+
+  return (
+    <div className="public auth-shell landing-theme">
+      <SkipLink />
+      {aside ? (
+        <div className="auth-split">
+          <div className="auth-split-form">
+            {top}
+            {box}
+          </div>
+          {aside}
+        </div>
+      ) : (
+        <>
+          {top}
+          {box}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The dark product panel beside the sign-up form. Decorative, so hidden from screen readers. */
+function SignupPanel() {
+  const reduced = useReducedMotion() ?? false;
+  return (
+    <aside className="auth-panel" aria-hidden>
+      <motion.ul
+        className="auth-panel-points"
+        variants={stagger(0.08, reduced ? 0 : 0.3)}
+        initial="hidden"
+        animate="shown"
+      >
+        {["Track up to 10 Shopify brands.", "See every price drop.", "Get one email when your size returns."].map(point => (
+          <motion.li key={point} variants={reveal(reduced)}>
+            <Icon name="check" /> {point}
+          </motion.li>
+        ))}
+      </motion.ul>
+    </aside>
+  );
+}
+
+/** The message for a failed auth request. */
+function failureMessage(failure: unknown): string {
+  if (failure instanceof ApiError && failure.code === "rate_limited") return "Too many tries. Wait a minute, then try again.";
+  if (failure instanceof Error && failure.message) return failure.message;
+  return "Something went wrong. Try again.";
 }
 
 /** Sends a signed-in visitor straight to My Stores. */
@@ -63,26 +152,38 @@ function GoogleButton({ label }: { label: string }) {
   const api = useApi();
   const finish = useFinishSignIn();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   return (
-    <button
-      type="button"
-      className="btn google"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          finish(await api.startGoogleSignIn());
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <Icon name="google" /> {label}
-    </button>
+    <>
+      <button
+        type="button"
+        className="btn google"
+        disabled={busy}
+        aria-busy={busy || undefined}
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          try {
+            finish(await api.startGoogleSignIn());
+          } catch (failure) {
+            setError(failureMessage(failure));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? <span className="spinner" aria-hidden /> : <Icon name="google" />} {label}
+      </button>
+      {error && (
+        <p className="form-alert google-alert" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   );
 }
 
-function Field(props: {
+function Field({ ref, ...props }: {
   id: string;
   label: string;
   type?: string;
@@ -91,11 +192,13 @@ function Field(props: {
   error?: string;
   onChange(value: string): void;
   placeholder?: string;
+  ref?: Ref<HTMLInputElement>;
 }) {
   return (
     <div className="field">
       <label htmlFor={props.id}>{props.label}</label>
       <input
+        ref={ref}
         id={props.id}
         type={props.type ?? "text"}
         autoComplete={props.autoComplete}
@@ -161,6 +264,7 @@ export function LoginPage() {
     <AuthBox
       title="Welcome back"
       description="Sign in to see your stores, updates, and alerts."
+      topLink={<>New here? <Link className="text-link" to="/signup">Create an account</Link></>}
     >
       {notice && <p className="form-alert" role="status" style={{ marginBottom: 16 }}>{notice}</p>}
       <GoogleButton label="Continue with Google" />
@@ -190,38 +294,73 @@ export function SignupPage() {
   const redirect = useSignedInRedirect();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   if (redirect) return redirect;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!validEmail(email)) return setError("Enter a valid email address.");
+    if (!validEmail(email)) {
+      setError("Enter a valid email address.");
+      emailRef.current?.focus();
+      return;
+    }
     setBusy(true);
+    setFormError("");
     try {
       await api.requestSignup(email);
       navigate("/signup/sent", { state: { email: email.trim() } });
+    } catch (failure) {
+      setFormError(failureMessage(failure));
     } finally {
       setBusy(false);
     }
   }
 
+  const logIn = (
+    <>
+      Already have an account? <Link className="text-link" to="/login">Log in</Link>
+    </>
+  );
+
   return (
     <AuthBox
-      title="Create an account"
-      description="Confirm your email first. Then you set a password."
+      title="Create your account"
+      description="Confirm your email, then set a password."
+      topLink={logIn}
+      aside={<SignupPanel />}
     >
       <GoogleButton label="Sign up with Google" />
       <p className="divider">or</p>
       <form className="stack" noValidate onSubmit={submit}>
-        <Field id="email" label="Email" type="email" autoComplete="email" value={email} error={error} onChange={value => { setEmail(value); setError(""); }} placeholder="alex@example.com" />
-        <button className="btn primary" type="submit" disabled={busy}>
-          Send confirmation link
+        <Field
+          id="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          error={error}
+          ref={emailRef}
+          onChange={value => {
+            setEmail(value);
+            setError("");
+            setFormError("");
+          }}
+          placeholder="alex@example.com"
+        />
+        {formError && (
+          <p className="form-alert" role="alert">
+            {formError}
+          </p>
+        )}
+        <button className="btn primary" type="submit" disabled={busy} aria-busy={busy || undefined}>
+          {busy && <span className="spinner" aria-hidden />}
+          {busy ? "Sending link…" : "Send confirmation link"}
         </button>
       </form>
-      <p className="switch muted">
-        Already have an account? <Link className="text-link" to="/login">Log in</Link>
-      </p>
+      <p className="switch muted">{logIn}</p>
     </AuthBox>
   );
 }
@@ -240,12 +379,35 @@ function SampleLink({ to, label }: { to: string; label: string }) {
   );
 }
 
+/** A mail icon in a 56 px circle that springs in. */
+function SentIcon() {
+  const reduced = useReducedMotion();
+  return (
+    <motion.span
+      className="auth-sent-icon"
+      aria-hidden
+      initial={{ scale: reduced ? 1 : 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={reduced ? { duration: DURATION.feedback } : SPRING}
+    >
+      <Icon name="mail" />
+    </motion.span>
+  );
+}
+
 export function SignupSentPage() {
   const location = useLocation();
   const email = (location.state as { email?: string } | null)?.email;
   return (
-    <AuthBox title="Check your email" description={<>If {email ?? "this address"} can be used, we sent a confirmation link to it. The link expires in 30 minutes.</>}>
+    <AuthBox
+      title="Check your email"
+      description={<>If {email ?? "this address"} can be used, we sent a confirmation link to it. The link expires in 30 minutes.</>}
+      icon={<SentIcon />}
+    >
       <p className="muted">Open the link on this device to set your password.</p>
+      <p className="switch muted">
+        <Link className="text-link" to="/signup">Use a different email</Link>
+      </p>
       <SampleLink to="/verify-email" label="Open the sample confirmation link" />
     </AuthBox>
   );

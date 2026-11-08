@@ -199,6 +199,79 @@ body { margin: 0; background: #fff; color: #0a0a0a; font: 14px/1.5 var(--sans); 
 .form-alert { border: 1px solid var(--line); border-radius: 8px; background: var(--wash); padding: 10px 12px; font-size: 13px; }
 .code-input { font-family: var(--mono); font-size: 20px; letter-spacing: .3em; text-align: center; }
 
+/*
+ * Light auth shell: every auth page, styled to match the landing page.
+ * `.public` keeps its base rules. `.auth-shell` swaps its dark colors for the landing tokens.
+ */
+.public.auth-shell {
+  color-scheme: light;
+  --paper: #fafafa;
+  --surface: #fff;
+  --wash: #f5f5f5;
+  --ink: #0a0a0a;
+  --muted: #737373;
+  --line: #ebebeb;
+  --control-line: #c4c4c4;
+  --line-strong: #8a8a8a;
+  --solid: #0a0a0a;
+  --solid-hover: #303030;
+  --on-solid: #fff;
+  --selected: #ededed;
+  min-height: 100svh;
+  font-family: var(--l-sans);
+  font-size: 15px;
+  line-height: 24px;
+}
+.auth-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; }
+.auth-top-link { display: none; font-size: 14px; color: var(--muted); text-align: right; }
+@media (min-width: 640px) { .auth-top-link { display: block; } }
+.auth-top-link a { color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.auth-shell .auth-main { padding: 32px 16px 64px; }
+.auth-shell .auth-main::before { opacity: .7; }
+.auth-shell .auth-box { width: min(100%, 432px); padding: 32px; border-radius: 16px; }
+.auth-shell .auth-box.plain { width: min(100%, 400px); padding: 0; border: 0; background: none; }
+.auth-shell .auth-box header { margin-bottom: 32px; }
+.auth-shell .auth-box h1 { font-size: 36px; line-height: 40px; font-weight: 600; letter-spacing: -.03em; margin-bottom: 8px; }
+.auth-shell .auth-box header p { font-size: 15px; line-height: 24px; }
+.auth-shell .btn { min-height: 44px; border-radius: 999px; padding-inline: 20px; font-weight: 500; font-size: 15px; }
+.auth-shell .btn:active:not(:disabled) { scale: .97; }
+.auth-shell .btn.google { border-color: var(--line); background: var(--surface); }
+.auth-shell .btn.google:hover:not(:disabled) { border-color: var(--line-strong); background: var(--wash); }
+.auth-shell .btn.primary .spinner { border-color: rgba(255, 255, 255, .3); border-top-color: #fff; }
+.auth-shell .field > label { font-size: 14px; font-weight: 500; }
+.auth-shell :is(input, select) { min-height: 44px; border-radius: 12px; padding: 9px 14px; font-size: 15px; }
+.auth-shell input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.auth-shell input[aria-invalid="true"] { border-color: var(--ink); border-width: 1px; }
+.auth-shell .error { font-size: 13px; font-weight: 500; }
+.auth-shell .divider { margin: 20px 0; }
+.auth-shell .auth-box .switch { margin-top: 24px; font-size: 14px; }
+.auth-shell .text-link { font-weight: 500; }
+.auth-shell .form-alert { border-radius: 12px; font-size: 14px; line-height: 20px; }
+.auth-shell .form-alert[role="alert"] { border-color: var(--ink); background: var(--surface); }
+.auth-shell .google-alert { margin-top: 12px; }
+
+/* Sign-up: form on the left, product panel on the right (1024 px and wider). */
+.auth-split { display: grid; min-height: 100svh; }
+.auth-split-form { display: flex; flex-direction: column; min-width: 0; }
+.auth-split-form .auth-main { flex: 1; }
+.auth-split-form .auth-main::before { display: none; }
+.auth-panel { display: none; }
+.auth-sent-icon { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 24px; border-radius: 50%; background: var(--selected); color: var(--ink); }
+.auth-sent-icon .icon { width: 24px; height: 24px; }
+@media (min-width: 1024px) {
+  .auth-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .auth-panel {
+    position: relative; isolation: isolate; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 40px;
+    margin: 8px; padding: 48px; border-radius: 24px;
+    background: var(--l-inverse); color: var(--l-on-inverse);
+  }
+}
+.auth-panel-points { display: grid; gap: 12px; width: min(100%, 480px); margin: 0; padding: 0; list-style: none; }
+.auth-panel-points { gap: 20px; width: min(100%, 400px); }
+.auth-panel-points li { display: flex; align-items: center; gap: 12px; font-size: 20px; line-height: 28px; font-weight: 500; letter-spacing: -.01em; color: rgba(255, 255, 255, .85); }
+.auth-panel-points .icon { width: 20px; height: 20px; color: #fff; }
+
 @media (min-width: 741px) and (pointer: fine) {
 }
 

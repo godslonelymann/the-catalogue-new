@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { Icon } from "./Icon";
 
@@ -25,21 +24,5 @@ export function SkipLink() {
     >
       Skip to content
     </a>
-  );
-}
-
-/** Dark public frame from the prototype, for the landing and sign-in pages. */
-export function PublicFrame({ nav, children }: { nav?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="public">
-      <SkipLink />
-      <header className="site-head">
-        <div className="wrap between">
-          <Wordmark to="/" />
-          {nav && <nav className="row" aria-label="Account">{nav}</nav>}
-        </div>
-      </header>
-      {children}
-    </div>
   );
 }

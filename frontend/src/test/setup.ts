@@ -27,3 +27,16 @@ Element.prototype.scrollIntoView ??= function () {};
 Element.prototype.hasPointerCapture ??= () => false;
 Element.prototype.releasePointerCapture ??= function () {};
 window.scrollTo = () => {};
+
+// The landing animations (Motion's useInView and whileInView) use this. Nothing is ever in view.
+globalThis.IntersectionObserver ??= class {
+  readonly root = null;
+  readonly rootMargin = "";
+  readonly thresholds = [];
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+} as unknown as typeof IntersectionObserver;
