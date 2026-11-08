@@ -437,7 +437,7 @@ function nowNote(line: ChangeLine, currency: string): string | null {
     if (back.length) return `In stock now${titles(back)}`;
   }
   if ((line.kind === "price_drop" || line.kind === "price_rise") && line.newPrice !== null) {
-    const changed = line.options.find(option => option.nowPrice !== null && option.nowPrice !== line.newPrice);
+    const changed = line.options.find(option => option.nowPrice != null && option.nowPrice !== line.newPrice);
     if (changed) return `Price now ${money(changed.nowPrice!, currency)}`;
   }
   return null;
