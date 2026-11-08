@@ -41,6 +41,7 @@ export function Features() {
             title="Exact-size alerts"
             description="Save a size and colour. We email you once, when that exact variant returns."
             reduced={reduced}
+            fill
           >
             <SizeAlerts reduced={reduced} />
           </BentoCell>
@@ -58,24 +59,30 @@ export function Features() {
   );
 }
 
-/** Aceternity Bento Grid item, inside a Card Spotlight. Title and description sit at the bottom. */
+/**
+ * Aceternity Bento Grid item, inside a Card Spotlight. Title and description sit at the bottom.
+ * The visual is centred. With `fill`, it starts at the top and fills the space down to the title,
+ * for a tall cell whose visual is a list.
+ */
 function BentoCell({
   title,
   description,
   className,
   children,
   reduced,
+  fill = false,
 }: {
   title: string;
   description: string;
   className?: string;
   children: ReactNode;
   reduced: boolean;
+  fill?: boolean;
 }) {
   return (
     <motion.div variants={reveal(reduced)} className={cn("flex", className)}>
       <CardSpotlight className="flex w-full flex-col justify-between gap-6 p-6 md:p-7">
-        <div className="relative z-10 flex flex-1 flex-col justify-center">{children}</div>
+        <div className={cn("relative z-10 flex flex-1 flex-col", fill ? "justify-start" : "justify-center")}>{children}</div>
         <div className="relative z-10">
           <h3 className="l-h3">{title}</h3>
           <p className="mt-1 text-[15px] leading-6 text-(--l-muted)">{description}</p>
@@ -108,6 +115,7 @@ const alerts = [
   { name: "Fleece Hoodie", variant: "Grey · M", flips: false },
   { name: "Oxford Shirt", variant: "White · 40", flips: false },
   { name: "Weekend Cap", variant: "Navy · One size", flips: false },
+  { name: "Linen Overshirt", variant: "Ecru · L", flips: false },
 ];
 
 function SizeAlerts({ reduced }: { reduced: boolean }) {
@@ -129,7 +137,8 @@ function SizeAlerts({ reduced }: { reduced: boolean }) {
       initial="hidden"
       whileInView="shown"
       viewport={VIEWPORT}
-      className="flex flex-col gap-2"
+      // Fills the tall cell: the rows spread out evenly, with at least 8 px between them.
+      className="flex flex-1 flex-col justify-between gap-2"
     >
       {alerts.map(alert => {
         const back = alert.flips && restocked;
